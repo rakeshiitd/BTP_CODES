@@ -1,0 +1,71 @@
+#!/usr/bin/python
+# By Ben Kenney - http://www.benk.ca
+# 1D Time dependent spherical diffusion equation
+# dC/dt = K div(grad(C)) + 2K/x grad(c) on x=[0,1]
+# BC: @x=0 C=1, @x=1 dC/dC=-1
+# Time discretization using Crank Nicolson scheme
+
+import scipy
+import scipy.sparse as sparse
+import scipy.sparse.linalg
+import numpy
+
+N = 50
+dx = 1/(N-1.0)
+delta = -1.0
+K = 1.0
+
+#grid points
+x = numpy.linspace(0,1,N)
+
+#create time steps
+k = 0.5/100
+TFinal = 1
+NumOfTimeSteps = int(TFinal/k)
+
+#initial conditions
+c0 = numpy.transpose([numpy.ones(N)*1.0])
+
+#source term
+F = numpy.transpose([numpy.zeros(N)])
+F[-1]=2.0*K*delta*(1.0/dx+1.0)
+print F
+
+#create matrices with boundary conditions
+A1=numpy.zeros([N])
+A2=numpy.zeros([N])
+A1[0]=0.0 # constant value boundary
+for i in range(1,N-1):
+	array = numpy.zeros([N])
+	array[i-1:i-1+3] = [1,-2,1]
+	A1=numpy.vstack([A1,array])
+	array = numpy.zeros([N])
+	#array[i-1:i-1+3] = [-1.0/x[i],0.0,1.0/x[i]] #x is the grid spacing
+	array[i-1:i-1+3] = [-1.0,0.0,1.0]
+	A2=numpy.vstack([A2,array])
+array = numpy.zeros([N])
+array[-2:]=[2,-2] #gradient boundary condition
+A1=numpy.vstack([A1,array])
+print A1
+A1=A1*K/dx/dx
+A1=scipy.sparse.csr_matrix(A1)
+array = numpy.zeros([N])
+A2=numpy.vstack([A2,array])
+print A2
+A2=A2*2.0*K/2.0/dx #note: grid factor, 1/x, is built into A2 matrix already
+A2=scipy.sparse.csr_matrix(A2)
+
+data = []
+
+#identity matrix
+I = sparse.identity(N)
+
+print("Time step = %g \t Time = %g"%(0, 0))
+print(c0)
+for i in range(NumOfTimeSteps):
+	A = (I - k/2.0*A1 - k/2.0*A2)
+	b = (I + k/2.0*A1 + k/2.0*A2)*c0+k*F
+	c0 = numpy.transpose(numpy.mat(sparse.linalg.spsolve(A, b)))
+	print("Time step = %g \t Time = %g"%(i+1, k*(i+1)))
+	data.append(c0)
+print c0[:,-1]
